@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm ,OAuth2PasswordBearer
 from app import schemas, crud, db
 from app.routers import auth
+from app.dependencies import require_roles,require_role,UserRole
 
 
 router = APIRouter()
@@ -19,7 +20,7 @@ def get_db():
     finally:
         db_session.close()
 
-@router.get("/me", response_model=schemas.UserOut)
+@router.get("/me", response_model=schemas.UserOut, dependencies=[Depends(require_roles(list[UserRole.admin,UserRole.student,UserRole.teacher]))])
 def read_users_me(token: str = Security(oauth2_scheme), db: Session = Depends(get_db)):
     email = auth.decode_access_token(token)
     if not email:
@@ -37,14 +38,14 @@ def get_db():
     finally:
         db_session.close()
 
-@router.post("/signup", response_model=schemas.UserOut)
+@router.post("/signup", response_model=schemas.UserOut, dependencies=[Depends(require_roles(list[UserRole.admin,UserRole.student,UserRole.teacher]))])
 def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     return crud.create_user(db, user)
 
-@router.post("/token", response_model=schemas.Token)
+@router.post("/token", response_model=schemas.Token, dependencies=[Depends(require_roles(list[UserRole.admin,UserRole.student,UserRole.teacher]))])
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -70,7 +71,7 @@ def get_password_hash(password):
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

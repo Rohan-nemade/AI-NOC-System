@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas, db
+from app.dependencies import get_current_user,UserRole,require_role
 
 router = APIRouter()
 
@@ -11,7 +12,7 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/admin/update-status/")
+@router.post("/admin/update-status/", dependencies=[Depends(require_role(UserRole.admin))])
 def update_student_status(
     student_id: int,
     subject_id: int,

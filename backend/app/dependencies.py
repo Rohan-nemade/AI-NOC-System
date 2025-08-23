@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from app.models import User
+from app.models import User, UserRole
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
 
@@ -32,12 +32,22 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
-def require_role(role: str):
-    def role_checker(current_user: User = Depends(get_current_user)):
-        if current_user.role != role:
+def require_role(required_role: UserRole):
+    def role_checker(current_user=Depends(get_current_user)):
+        if current_user.role != required_role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Operation allowed for {role} only"
+                detail=f"Operation requires {required_role} role"
+            )
+        return current_user
+    return role_checker
+
+def require_roles(required_roles: list[UserRole]):
+    def role_checker(current_user=Depends(get_current_user)):
+        if current_user.role not in required_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Operation not permitted for your role"
             )
         return current_user
     return role_checker

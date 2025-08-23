@@ -133,3 +133,14 @@ class MarksUpdateRequest(BaseModel):
     marks_ha: int | None = Field(None, ge=0, le=100)
     marks_tw: int | None = Field(None, ge=0, le=100)
     marks_pbl: int | None = Field(None, ge=0, le=100)
+
+class AssignmentCreate(BaseModel):
+    title: str
+    subject_id: int
+    description: str | None = None
+
+class NocStatusResponse(BaseModel):
+    student_id: int
+    subject_id: int
+    eligible: bool
+    reason: Optional[str] = None

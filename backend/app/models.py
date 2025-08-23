@@ -100,7 +100,7 @@ class Assignment(Base):
     teacher_id = Column(Integer, ForeignKey("users.id"))  # uploader
     description = Column(Text, nullable=True)
     is_sample = Column(Boolean, default=False)  # True for teacher sample, False for student submission
-
+    file_path = Column(String, nullable=True)
     subject = relationship("Subject", back_populates="assignments")
     teacher = relationship("User", foreign_keys=[teacher_id])
 
@@ -112,6 +112,7 @@ class AssignmentSubmission(Base):
     assignment_id = Column(Integer, ForeignKey("assignments.id"))
     student_id = Column(Integer, ForeignKey("users.id"))
     content = Column(Text, nullable=False)
+    file_path = Column(String, nullable=True)
     tfidf_vector = Column(Text, nullable=True)  # to store vector as string
     bert_score = Column(Float, nullable=True)   # BERT similarity score
     marks = Column(Float, nullable=True)

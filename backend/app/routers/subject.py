@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas, db
+from app.dependencies import require_role
+from app.models import UserRole  # your enum with roles like 'admin', 'teacher', etc.
 
 router = APIRouter()
 
@@ -11,26 +13,26 @@ def get_db():
     finally:
         db_session.close()
 
-@router.post("/admin/subjects/", response_model=schemas.SubjectOut)
+@router.post("/admin/subjects/", response_model=schemas.SubjectOut, dependencies=[Depends(require_role(UserRole.admin))])
 def create_subject(subject: schemas.SubjectCreate, db: Session = Depends(get_db)):
-    db_subject = models.Subject(**subject.dict())
+    db_subject = models.Subject(**subject.model_dump())
     db.add(db_subject)
     db.commit()
     db.refresh(db_subject)
     return db_subject
 
-@router.put("/admin/subjects/{subject_id}/parameters", response_model=schemas.SubjectOut)
+@router.put("/admin/subjects/{subject_id}/parameters", response_model=schemas.SubjectOut, dependencies=[Depends(require_role(UserRole.admin))])
 def update_subject_parameters(subject_id: int, params: schemas.SubjectParamsUpdate, db: Session = Depends(get_db)):
     subject = db.query(models.Subject).get(subject_id)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
-    for key, value in params.dict(exclude_unset=True).items():
+    for key, value in params.model_dump(exclude_unset=True).items():
         setattr(subject, key, value)
     db.commit()
     db.refresh(subject)
     return subject
 
-@router.post("/admin/assign-subject/")
+@router.post("/admin/assign-subject/", dependencies=[Depends(require_role(UserRole.admin))])
 def assign_subject(req: schemas.AssignSubjectRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).get(req.user_id)
     subject = db.query(models.Subject).get(req.subject_id)
