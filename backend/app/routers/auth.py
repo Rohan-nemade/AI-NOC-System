@@ -20,7 +20,7 @@ def get_db():
     finally:
         db_session.close()
 
-@router.get("/me", response_model=schemas.UserOut, dependencies=[Depends(require_roles(list[UserRole.admin,UserRole.student,UserRole.teacher]))])
+@router.get("/me", response_model=schemas.UserOut)
 def read_users_me(token: str = Security(oauth2_scheme), db: Session = Depends(get_db)):
     email = auth.decode_access_token(token)
     if not email:
@@ -38,14 +38,14 @@ def get_db():
     finally:
         db_session.close()
 
-@router.post("/signup", response_model=schemas.UserOut, dependencies=[Depends(require_roles(list[UserRole.admin,UserRole.student,UserRole.teacher]))])
+@router.post("/signup", response_model=schemas.UserOut)
 def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     return crud.create_user(db, user)
 
-@router.post("/token", response_model=schemas.Token, dependencies=[Depends(require_roles(list[UserRole.admin,UserRole.student,UserRole.teacher]))])
+@router.post("/token", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.authenticate_user(db, form_data.username, form_data.password)
     if not user:
