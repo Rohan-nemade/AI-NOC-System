@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas, db
-from app.dependencies import UserRole,require_role,get_current_user
+from app.dependencies import UserRole, require_role, get_current_user
 
 router = APIRouter()
 
@@ -11,17 +11,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
 @router.post(
     "/messages/",
     response_model=schemas.MessageOut,
-    dependencies=[Depends(require_role(UserRole.student))]  # Or add others as needed
+    dependencies=[Depends(require_role(UserRole.student))]  # Or add more roles if needed
 )
 def send_message(
     message: schemas.MessageCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user)
 ):
-    # Optionally validate sender_id matches current_user.id for security
+    # Security check: sender_id must be the current user
     if message.sender_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot send message as another user.")
     
@@ -41,9 +42,9 @@ def get_messages_between_users(
     user1_id: int,
     user2_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user)
 ):
-    # Restrict data to requests where current_user is either user1 or user2
+    # Security check: current user must be one of the two users
     if current_user.id not in (user1_id, user2_id):
         raise HTTPException(status_code=403, detail="Access denied")
     

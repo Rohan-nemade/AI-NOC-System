@@ -1,6 +1,13 @@
 from typing import Optional
 from PyPDF2 import PdfReader
 from docx import Document
+import aiofiles
+from fastapi import UploadFile
+
+async def save_upload_file(upload_file: UploadFile, destination: str) -> None:
+    async with aiofiles.open(destination, "wb") as out_file:
+        while content := await upload_file.read(1024):  # read in chunks asynchronously
+            await out_file.write(content)
 
 def extract_text_from_pdf(file_path: str) -> str:
     text = ""

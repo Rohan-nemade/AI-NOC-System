@@ -1,0 +1,71 @@
+1. Authentication and RBAC
+Test login, token generation, and token expiration.
+
+Verify role-based access control:
+
+Admin endpoints accessible only by admin.
+
+Teacher endpoints accessible only by teacher.
+
+Student endpoints accessible only by student.
+
+Check that unauthorized users get proper 401/403 responses.
+
+2. Teacher Assignment Upload APIs
+Upload sample assignment as teacher with valid data.
+
+Attempt upload without teacher role → expect 403 Forbidden.
+
+Upload assignment with missing or invalid data → expect validation errors.
+
+3. Student Assignment Submission API
+Submit assignment with file upload and/or text content.
+
+Check plagiarism rejection at TF-IDF similarity threshold (>=0.75).
+
+Verify BERT similarity score is returned.
+
+Submit duplicate/highly similar content → expect rejection.
+
+Submit valid unique content → expect acceptance.
+
+4. Teacher Marks Update API
+Update marks for student’s subject as teacher assigned to that subject.
+
+Update marks with invalid values → expect validation errors.
+
+Try updating marks for subjects teacher is not assigned to → expect 403.
+
+Check marks reflect correctly after update.
+
+5. Student NOC Eligibility API
+Check NOC eligibility status and reasons for various students.
+
+Verify eligibility calculation matches logic (attendance & marks thresholds).
+
+Try accessing NOC API as other roles → expect 403 or 401.
+
+6. Admin Subject Management
+Create subject as admin and verify creation.
+
+Update subject parameters (attendance threshold, marks criteria).
+
+Assign subjects to students and teachers.
+
+Attempt these actions as non-admin → expect access errors.
+
+7. Grievance APIs
+Submit grievance as student with valid details.
+
+Retrieve student grievances.
+
+Update grievance status as admin.
+
+Try submitting/retrieving/updating with wrong roles → expect errors.
+
+8. Messaging APIs
+Send message as logged-in user.
+
+Retrieve messages between two users only accessible to them.
+
+Attempt sending/viewing messages bypassing authentication or roles → verify access denied.

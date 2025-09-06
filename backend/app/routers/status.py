@@ -1,18 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app import models, schemas, db
-from app.dependencies import get_current_user,UserRole,require_role
+from app.dependencies import require_role, UserRole
 
 router = APIRouter()
 
 def get_db():
-    db = db.SessionLocal()
+    db_session = db.SessionLocal()
     try:
-        yield db
+        yield db_session
     finally:
-        db.close()
+        db_session.close()
 
-@router.post("/admin/update-status/", dependencies=[Depends(require_role(UserRole.admin))])
+@router.post(
+    "/admin/update-status/",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_role(UserRole.admin))]
+)
 def update_student_status(
     student_id: int,
     subject_id: int,
@@ -23,6 +27,7 @@ def update_student_status(
     marks_pbl: float,
     db: Session = Depends(get_db)
 ):
+    # Check or create student-subject status record
     status = (
         db.query(models.StudentSubjectStatus)
         .filter_by(student_id=student_id, subject_id=subject_id)
@@ -35,23 +40,23 @@ def update_student_status(
         )
         db.add(status)
 
+    # Update the record fields
     status.attendance_percentage = attendance
     status.marks_cie = marks_cie
     status.marks_ha = marks_ha
     status.marks_tw = marks_tw
     status.marks_pbl = marks_pbl
 
-    # Calculate eligibility based on attendance threshold and marks thresholds
+    # Calculate eligibility based on attendance threshold and marks total
     subject = db.query(models.Subject).get(subject_id)
     reasons = []
     if attendance < subject.attendance_threshold:
-        reasons.append("Attendance below required threshold")
+        reasons.append(f"Attendance below required threshold ({attendance}%)")
 
     total_marks = marks_cie + marks_ha + marks_tw + marks_pbl
-    # Example minimal mark threshold, adjust as needed
-    min_total_marks = 40  
+    min_total_marks = 40  # customize this threshold as per your rules
     if total_marks < min_total_marks:
-        reasons.append("Marks below required threshold")
+        reasons.append("Total marks below required threshold")
 
     if reasons:
         status.is_noc_eligible = False

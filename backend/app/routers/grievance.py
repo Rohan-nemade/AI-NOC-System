@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas, db
-from app.dependencies import UserRole,require_role,require_roles
+from app.dependencies import UserRole, require_role, get_current_user
+from enum import Enum
+from typing import List, Optional
 
 router = APIRouter()
 
@@ -12,25 +14,31 @@ def get_db():
     finally:
         db.close()
 
+class GrievanceStatus(str, Enum):
+    pending = "Pending"
+    resolved = "Resolved"
+    rejected = "Rejected"
+
 @router.post("/grievance/", response_model=schemas.GrievanceOut, dependencies=[Depends(require_role(UserRole.student))])
-def submit_grievance(grievance: schemas.GrievanceCreate, db: Session = Depends(get_db)):
-    db_grievance = models.Grievance(**grievance.model_dump())
+def submit_grievance(grievance: schemas.GrievanceCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    # Associate grievance to current user
+    db_grievance = models.Grievance(**grievance.model_dump(), student_id=current_user.id)
     db.add(db_grievance)
     db.commit()
     db.refresh(db_grievance)
     return db_grievance
 
-@router.get("/grievance/{student_id}", response_model=list[schemas.GrievanceOut], dependencies=[Depends(require_role(UserRole.student))])
-def get_student_grievances(student_id: int, db: Session = Depends(get_db)):
-    grievances = db.query(models.Grievance).filter(models.Grievance.student_id == student_id).all()
+@router.get("/grievance/", response_model=List[schemas.GrievanceOut], dependencies=[Depends(require_role(UserRole.student))])
+def get_student_grievances(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    grievances = db.query(models.Grievance).filter(models.Grievance.student_id == current_user.id).all()
     return grievances
 
 @router.put("/grievance/{grievance_id}/status", dependencies=[Depends(require_role(UserRole.admin))])
-def update_grievance_status(grievance_id: int, status: str, response: str | None = None, db: Session = Depends(get_db)):
+def update_grievance_status(grievance_id: int, status: GrievanceStatus, response: Optional[str] = None, db: Session = Depends(get_db)):
     grievance = db.query(models.Grievance).get(grievance_id)
     if not grievance:
         raise HTTPException(status_code=404, detail="Grievance not found")
-    grievance.status = status
+    grievance.status = status.value
     grievance.response = response
     db.commit()
-    return {"message": "Grievance updated"}
+    return {"message": "Grievance status updated successfully."}
