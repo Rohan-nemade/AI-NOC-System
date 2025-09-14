@@ -13,7 +13,7 @@ def get_db():
         db_session.close()
 
 @router.post(
-    "/admin/update-status/",
+    "/admin/update-status",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_role(UserRole.admin))]
 )

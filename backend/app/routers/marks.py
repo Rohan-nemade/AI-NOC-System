@@ -13,7 +13,7 @@ def get_db():
         db_session.close()
 
 @router.put(
-    "/teacher/update-status/",
+    "/teacher/update-status",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_role(UserRole.teacher))]
 )

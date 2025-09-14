@@ -13,7 +13,7 @@ def get_db():
         db_session.close()
 
 @router.get(
-    "/student/noc-status/",
+    "/student/noc-status",
     response_model=list[schemas.NocStatusResponse],
     dependencies=[Depends(require_role(UserRole.student))]
 )

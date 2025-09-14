@@ -19,7 +19,7 @@ class GrievanceStatus(str, Enum):
     resolved = "Resolved"
     rejected = "Rejected"
 
-@router.post("/grievance/", response_model=schemas.GrievanceOut, dependencies=[Depends(require_role(UserRole.student))])
+@router.post("/grievance", response_model=schemas.GrievanceOut, dependencies=[Depends(require_role(UserRole.student))])
 def submit_grievance(grievance: schemas.GrievanceCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # Associate grievance to current user
     db_grievance = models.Grievance(**grievance.model_dump(), student_id=current_user.id)
@@ -28,7 +28,7 @@ def submit_grievance(grievance: schemas.GrievanceCreate, db: Session = Depends(g
     db.refresh(db_grievance)
     return db_grievance
 
-@router.get("/grievance/", response_model=List[schemas.GrievanceOut], dependencies=[Depends(require_role(UserRole.student))])
+@router.get("/grievance", response_model=List[schemas.GrievanceOut], dependencies=[Depends(require_role(UserRole.student))])
 def get_student_grievances(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     grievances = db.query(models.Grievance).filter(models.Grievance.student_id == current_user.id).all()
     return grievances

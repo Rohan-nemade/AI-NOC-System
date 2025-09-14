@@ -13,7 +13,7 @@ def get_db():
         db.close()
 
 @router.post(
-    "/messages/",
+    "/messages",
     response_model=schemas.MessageOut,
     dependencies=[Depends(require_role(UserRole.student))]  # Or add more roles if needed
 )
