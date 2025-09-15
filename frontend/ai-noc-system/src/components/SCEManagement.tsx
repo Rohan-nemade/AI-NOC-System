@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -15,37 +15,47 @@ import {
   Presentation,
   Briefcase,
   CheckCircle,
-  Clock,
   AlertCircle,
-  BookOpen,
-  GraduationCap
+  Edit,
+  XCircle,
+  Save,
+  Loader2
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 
+// ===================================================================
+// Type Definitions to match Backend Schemas
+// ===================================================================
+type SCEStatus = 'completed' | 'pending' | 'late';
+
 interface SCEComponent {
-  id: string;
+  id: number;
   studentName: string;
-  studentRollNo: string;
-  class: string;
+  studentRollNo?: string;
+  class: string; // Mapped from class_name
   division: string;
-  batch: string;
+  batch?: string;
   year: string;
   subject: string;
-  pblStatus: 'completed' | 'pending' | 'late';
-  pblScore: number;
-  pblTitle: string;
-  presentationStatus: 'completed' | 'pending' | 'late';
-  presentationScore: number;
-  presentationTopic: string;
-  certificationStatus: 'completed' | 'pending' | 'late';
-  certificationName: string;
-  certificationProvider: string;
-  overallSCEScore: number;
+  pblStatus: SCEStatus;
+  pblScore?: number;
+  pblTitle?: string;
+  presentationStatus: SCEStatus;
+  presentationScore?: number;
+  presentationTopic?: string;
+  certificationStatus: SCEStatus;
+  certificationName?: string;
+  certificationProvider?: string;
+  overallSCEScore?: number;
   lastUpdated: string;
+  // Raw data from backend needed for updates
+  student_id: number;
+  subject_id: number;
 }
 
 interface SCEManagementProps {
   onBack: () => void;
+  authToken: string;
 }
 
 const PIE_COLORS = {
@@ -54,142 +64,87 @@ const PIE_COLORS = {
   'pending': '#F59E0B', // yellow-500
 };
 
-export function SCEManagement({ onBack }: SCEManagementProps) {
+// ===================================================================
+// Main Component
+// ===================================================================
+export function SCEManagement({ onBack, authToken }: SCEManagementProps) {
+  // --- State for Data, Loading, and Errors ---
+  const [allSCEComponents, setAllSCEComponents] = useState<SCEComponent[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- State for Filters and Search (restored from old code) ---
+  const [selectedClass, setSelectedClass] = useState<string>('TE IT');
+  const [selectedSubject, setSelectedSubject] = useState<string>('Data Structures');
+  const [selectedDivision, setSelectedDivision] = useState<string>('A');
+  const [selectedYear, setSelectedYear] = useState<string>('2024-25');
+  const [selectedSCEType, setSelectedSCEType] = useState<string>('All');
+  const [selectedStatusType, setSelectedStatusType] = useState<SCEStatus>('completed');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // --- State for UI interactions (Editing & Hover) ---
+  const [editingRowId, setEditingRowId] = useState<number | null>(null);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [editedStatuses, setEditedStatuses] = useState<{ pbl_status?: SCEStatus, presentation_status?: SCEStatus, certification_status?: SCEStatus }>({});
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+
+  // --- Static Data for Filters ---
   const classes = ['TE IT', 'BE IT', 'SE IT', 'FE IT'];
   const subjects = ['Data Structures', 'Computer Networks', 'Database Management', 'Software Engineering', 'Web Technologies', 'Machine Learning', 'Artificial Intelligence', 'Operating Systems'];
   const divisions = ['A', 'B', 'C'];
   const years = ['2024-25', '2023-24', '2022-23', '2021-22'];
   const sceTypes = ['All', 'PBL (Project Based Learning)', 'Presentation', 'Course Certification'];
-  const statusTypes = ['completed', 'late', 'pending'];
+  const statusTypes: SCEStatus[] = ['completed', 'late', 'pending'];
 
-  const [selectedClass, setSelectedClass] = useState<string>(classes[0]);
-  const [selectedSubject, setSelectedSubject] = useState<string>(subjects[0]);
-  const [selectedDivision, setSelectedDivision] = useState<string>(divisions[0]);
-  const [selectedYear, setSelectedYear] = useState<string>(years[0]);
-  const [selectedSCEType, setSelectedSCEType] = useState<string>(sceTypes[0]);
-  const [selectedStatusType, setSelectedStatusType] = useState<string>(statusTypes[0]);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [hoveredCard, setHoveredCard] = useState<string | null>(null);
-
-  const allSCEComponents: SCEComponent[] = [
-    {
-      id: '1',
-      studentName: 'Aarav Sharma',
-      studentRollNo: '21310101',
-      class: 'TE IT',
-      division: 'A',
-      batch: 'Batch 1',
-      year: '2024-25',
-      subject: 'Data Structures',
-      pblStatus: 'completed',
-      pblScore: 85,
-      pblTitle: 'Binary Search Tree Implementation',
-      presentationStatus: 'completed',
-      presentationScore: 90,
-      presentationTopic: 'Algorithm Complexity Analysis',
-      certificationStatus: 'late',
-      certificationName: 'Data Structures & Algorithms',
-      certificationProvider: 'Coursera',
-      overallSCEScore: 87,
-      lastUpdated: '2024-11-20'
-    },
-    {
-      id: '2',
-      studentName: 'Vivaan Patel',
-      studentRollNo: '21310102',
-      class: 'TE IT',
-      division: 'A',
-      batch: 'Batch 1',
-      year: '2024-25',
-      subject: 'Data Structures',
-      pblStatus: 'completed',
-      pblScore: 92,
-      pblTitle: 'Graph Algorithms Visualization',
-      presentationStatus: 'completed',
-      presentationScore: 95,
-      presentationTopic: 'Dijkstra\'s Algorithm',
-      certificationStatus: 'completed',
-      certificationName: 'Advanced Data Structures',
-      certificationProvider: 'edX',
-      overallSCEScore: 94,
-      lastUpdated: '2024-11-18'
-    },
-    {
-      id: '3',
-      studentName: 'Aditya Kumar',
-      studentRollNo: '21310103',
-      class: 'TE IT',
-      division: 'A',
-      batch: 'Batch 1',
-      year: '2024-25',
-      subject: 'Data Structures',
-      pblStatus: 'late',
-      pblScore: 0,
-      pblTitle: 'Project Management Tool',
-      presentationStatus: 'pending',
-      presentationScore: 0,
-      presentationTopic: 'Hashing Techniques',
-      certificationStatus: 'pending',
-      certificationName: 'Data Structures Fundamentals',
-      certificationProvider: 'Udemy',
-      overallSCEScore: 0,
-      lastUpdated: '2024-11-15'
-    },
-    {
-      id: '4',
-      studentName: 'Priya Sharma',
-      studentRollNo: '21310201',
-      class: 'TE IT',
-      division: 'B',
-      batch: 'Batch 1',
-      year: '2024-25',
-      subject: 'Computer Networks',
-      pblStatus: 'completed',
-      pblScore: 88,
-      pblTitle: 'Network Packet Sniffer',
-      presentationStatus: 'completed',
-      presentationScore: 85,
-      presentationTopic: 'TCP/IP Stack Implementation',
-      certificationStatus: 'completed',
-      certificationName: 'Network Security',
-      certificationProvider: 'Cisco',
-      overallSCEScore: 86,
-      lastUpdated: '2024-11-19'
-    },
-    {
-      id: '5',
-      studentName: 'Aryan Verma',
-      studentRollNo: '22310101',
-      class: 'BE IT',
-      division: 'A',
-      batch: 'Batch 1',
-      year: '2024-25',
-      subject: 'Machine Learning',
-      pblStatus: 'completed',
-      pblScore: 95,
-      presentationStatus: 'completed',
-      pblTitle: 'Image Classification Model',
-      presentationScore: 92,
-      presentationTopic: 'Deep Learning Applications',
-      certificationStatus: 'completed',
-      certificationName: 'Machine Learning Specialization',
-      certificationProvider: 'Stanford Online',
-      overallSCEScore: 93,
-      lastUpdated: '2024-11-21'
+  // --- Data Fetching ---
+  const fetchSCEData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/sce/teacher', {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to fetch SCE data.");
+      }
+      const data = await response.json();
+      const formattedData = data.map((item: any) => ({
+        ...item,
+        class: item.class_name,
+        student_id: item.student_id,
+        subject_id: item.subject_id,
+      }));
+      setAllSCEComponents(formattedData);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
 
+  useEffect(() => {
+    if (authToken) {
+      fetchSCEData();
+    } else {
+      setError("Authentication Token not found.");
+      setIsLoading(false);
+    }
+  }, [authToken]);
+
+  // --- Filtering and Data Calculation (Restored from old code) ---
   const filteredSCEComponents = allSCEComponents.filter(component => {
     const classMatch = component.class === selectedClass;
     const subjectMatch = component.subject === selectedSubject;
     const divisionMatch = component.division === selectedDivision;
     const yearMatch = component.year === selectedYear;
+
     const sceTypeMatch = selectedSCEType === 'All' ||
       (selectedSCEType === 'PBL (Project Based Learning)' && component.pblStatus) ||
       (selectedSCEType === 'Presentation' && component.presentationStatus) ||
       (selectedSCEType === 'Course Certification' && component.certificationStatus);
 
-    const statusTypeMatch = (selectedSCEType === 'All' && statusTypes.includes(component.pblStatus) && statusTypes.includes(component.presentationStatus) && statusTypes.includes(component.certificationStatus)) ||
+    const statusTypeMatch = selectedSCEType === 'All' || // if 'All' types, don't filter by individual status
       (selectedSCEType === 'PBL (Project Based Learning)' && component.pblStatus === selectedStatusType) ||
       (selectedSCEType === 'Presentation' && component.presentationStatus === selectedStatusType) ||
       (selectedSCEType === 'Course Certification' && component.certificationStatus === selectedStatusType);
@@ -197,398 +152,203 @@ export function SCEManagement({ onBack }: SCEManagementProps) {
     return classMatch && subjectMatch && divisionMatch && yearMatch && sceTypeMatch && statusTypeMatch;
   });
 
-  const searchedSCEComponents = filteredSCEComponents.filter(component => {
-    const searchMatch = !searchTerm ||
-      component.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      component.studentRollNo.toLowerCase().includes(searchTerm.toLowerCase());
-    return searchMatch;
-  });
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
-      case 'late':
-        return <Badge className="bg-red-100 text-red-800">Late</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-      default:
-        return <Badge variant="secondary">Unknown</Badge>;
-    }
-  };
+  const searchedSCEComponents = filteredSCEComponents.filter(component =>
+    !searchTerm ||
+    component.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    component.studentRollNo?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const getSceStatusData = (components: SCEComponent[], sceType: 'pbl' | 'presentation' | 'certification') => {
-    const statusCounts = {
-      completed: 0,
-      'late': 0,
-      pending: 0,
-    };
+    const statusCounts: Record<SCEStatus, number> = { completed: 0, late: 0, pending: 0 };
     components.forEach(comp => {
       if (sceType === 'pbl') statusCounts[comp.pblStatus]++;
       if (sceType === 'presentation') statusCounts[comp.presentationStatus]++;
       if (sceType === 'certification') statusCounts[comp.certificationStatus]++;
     });
-
-    return [
-      { name: 'Completed', value: statusCounts.completed, color: PIE_COLORS.completed },
-      { name: 'Late', value: statusCounts.late, color: PIE_COLORS.late },
-      { name: 'Pending', value: statusCounts.pending, color: PIE_COLORS.pending },
-    ];
+    return Object.entries(statusCounts).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value, color: PIE_COLORS[name as SCEStatus] }));
   };
 
   const pblData = getSceStatusData(filteredSCEComponents, 'pbl');
   const presentationData = getSceStatusData(filteredSCEComponents, 'presentation');
   const certificationData = getSceStatusData(filteredSCEComponents, 'certification');
   const totalCompletedSCE = filteredSCEComponents.filter(s => s.pblStatus === 'completed' && s.presentationStatus === 'completed' && s.certificationStatus === 'completed').length;
-  // Fix: The original logic for totalIncompleteSCE was incorrect. It should check for any 'late' or 'pending' status.
-  const totalIncompleteSCE = filteredSCEComponents.filter(s => s.pblStatus !== 'completed' || s.presentationStatus !== 'completed' || s.certificationStatus !== 'completed').length;
+  const totalIncompleteSCE = filteredSCEComponents.length - totalCompletedSCE;
 
+  // --- Event Handlers for Editing ---
+  const handleEditClick = (component: SCEComponent) => {
+    setEditingRowId(component.id);
+    setEditedStatuses({
+      pbl_status: component.pblStatus,
+      presentation_status: component.presentationStatus,
+      certification_status: component.certificationStatus,
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRowId(null);
+    setEditedStatuses({});
+  };
+
+  const handleStatusChange = (field: keyof typeof editedStatuses, value: SCEStatus) => {
+    setEditedStatuses(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleConfirmUpdate = async (component: SCEComponent) => {
+    setIsUpdating(true);
+    try {
+      const response = await fetch('/sce/teacher/sce-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          student_id: component.student_id,
+          subject_id: component.subject_id,
+          ...editedStatuses,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to update status.");
+      }
+
+      setEditingRowId(null);
+      setEditedStatuses({});
+      await fetchSCEData(); // Refresh data to show changes
+    } catch (err: any) {
+      alert(`Update failed: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+
+  // --- UI Helper Functions ---
+  const getStatusBadge = (status: SCEStatus) => {
+    switch (status) {
+      case 'completed': return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+      case 'late': return <Badge className="bg-red-100 text-red-800">Late</Badge>;
+      case 'pending': return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      default: return <Badge variant="secondary">Unknown</Badge>;
+    }
+  };
+
+  // --- Render Logic ---
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-12 h-12 animate-spin text-blue-600" /></div>;
+  }
+
+  if (error) {
+    return <div className="flex flex-col items-center justify-center min-h-screen text-red-600"><AlertCircle className="w-12 h-12 mb-4" /><h2 className="text-xl mb-2">Error</h2><p>{error}</p></div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <Button variant="ghost" onClick={onBack} className="mb-2">
-              <Eye className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <h1 className="text-2xl mb-2">SCE Components Management</h1>
-            <p className="text-gray-600">Monitor Project-Based Learning, Presentations, and Course Certifications</p>
-          </div>
-        </div>
+        <Button variant="ghost" onClick={onBack} className="mb-2"><Eye className="w-4 h-4 mr-2" />Back to Dashboard</Button>
+        <h1 className="text-2xl mb-2">SCE Components Management</h1>
+        <p className="text-gray-600">Monitor Project-Based Learning, Presentations, and Course Certifications</p>
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Filters */}
+        {/* Filters (Restored 5-filter layout) */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Filter SCE Components
-            </CardTitle>
-            <CardDescription>
-              Select filters to view SCE components from specific classes, subjects, and types
-            </CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Filter className="w-5 h-5" />Filter SCE Components</CardTitle><CardDescription>Select filters to view specific records</CardDescription></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-              <div>
-                <Label htmlFor="filter-class">Class</Label>
-                <Select value={selectedClass} onValueChange={setSelectedClass}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map(cls => (
-                      <SelectItem key={cls} value={cls}>{cls}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="filter-subject">Subject</Label>
-                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map(subject => (
-                      <SelectItem key={subject} value={subject}>{subject}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="filter-division">Division</Label>
-                <Select value={selectedDivision} onValueChange={setSelectedDivision}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select division" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {divisions.map(div => (
-                      <SelectItem key={div} value={div}>{div}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="filter-sce-type">SCE Type</Label>
-                <Select value={selectedSCEType} onValueChange={setSelectedSCEType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select SCE type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sceTypes.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="filter-status-type">Status</Label>
-                <Select value={selectedStatusType} onValueChange={setSelectedStatusType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusTypes.map(status => (
-                      <SelectItem key={status} value={status}>{status}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div><Label>Class</Label><Select value={selectedClass} onValueChange={setSelectedClass}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{classes.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Subject</Label><Select value={selectedSubject} onValueChange={setSelectedSubject}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Division</Label><Select value={selectedDivision} onValueChange={setSelectedDivision}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{divisions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>SCE Type</Label><Select value={selectedSCEType} onValueChange={setSelectedSCEType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{sceTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Status</Label><Select value={selectedStatusType} onValueChange={(value) => setSelectedStatusType(value as SCEStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{statusTypes.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent></Select></div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Summary Cards with Hover effect and reordered */}
-        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Users className="w-5 h-5 text-blue-600" />
-                Total Students
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{allSCEComponents.length}</div>
-              <p className="text-sm text-gray-600">Total SCE records</p>
-            </CardContent>
-          </Card>
-
-          {/* SCE Completed Card */}
-          <Card className="transition-all duration-300 transform hover:scale-105">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                SCE Completed
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{totalCompletedSCE}</div>
-              <p className="text-sm text-gray-600">Total full completion</p>
-            </CardContent>
-          </Card>
-
-          {/* SCE Incomplete Card */}
-          <Card className="transition-all duration-300 transform hover:scale-105">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-                SCE Incomplete
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{totalIncompleteSCE}</div>
-              <p className="text-sm text-gray-600">Pending</p>
-            </CardContent>
-          </Card>
-
-          {/* PBL Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Briefcase className="w-5 h-5 text-green-600" />
-                PBL
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={pblData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => hoveredCard === 'pbl' ? `${value}` : ''}
-                    onMouseEnter={() => setHoveredCard('pbl')}
-                    onMouseLeave={() => setHoveredCard(null)}
-                  >
-                    {pblData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="bottom" height={36} iconSize={10} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Presentations Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Presentation className="w-5 h-5 text-purple-600" />
-                Presentations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={presentationData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => hoveredCard === 'presentations' ? `${value}` : ''}
-                    onMouseEnter={() => setHoveredCard('presentations')}
-                    onMouseLeave={() => setHoveredCard(null)}
-                  >
-                    {presentationData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="bottom" height={36} iconSize={10} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Certifications Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Award className="w-5 h-5 text-orange-600" />
-                Certifications
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={150}>
-                <PieChart>
-                  <Pie
-                    data={certificationData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => hoveredCard === 'certifications' ? `${value}` : ''}
-                    onMouseEnter={() => setHoveredCard('certifications')}
-                    onMouseLeave={() => setHoveredCard(null)}
-                  >
-                    {certificationData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="bottom" height={36} iconSize={10} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+        {/* Summary Cards (Restored 6-card layout with hover) */}
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          <Card className="lg:col-span-2"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Users className="w-5 h-5 text-blue-600" />Total Students</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-blue-600">{filteredSCEComponents.length}</div><p className="text-sm text-gray-500">Matching filters</p></CardContent></Card>
+          <Card className="transition-transform hover:scale-105"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><CheckCircle className="w-5 h-5 text-green-600" />SCE Completed</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{totalCompletedSCE}</div><p className="text-sm text-gray-600">Full completion</p></CardContent></Card>
+          <Card className="transition-transform hover:scale-105"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><AlertCircle className="w-5 h-5 text-red-600" />SCE Incomplete</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-red-600">{totalIncompleteSCE}</div><p className="text-sm text-gray-600">Any part pending</p></CardContent></Card>
+          <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Briefcase className="w-5 h-5 text-indigo-600" />PBL</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={100}><PieChart><Pie data={pblData} dataKey="value" innerRadius={25} outerRadius={40}>{pblData.map(e => <Cell key={e.name} fill={e.color} />)}</Pie><Legend iconSize={10} /></PieChart></ResponsiveContainer></CardContent></Card>
+          <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Presentation className="w-5 h-5 text-purple-600" />Presentations</CardTitle></CardHeader><CardContent><ResponsiveContainer width="100%" height={100}><PieChart><Pie data={presentationData} dataKey="value" innerRadius={25} outerRadius={40}>{presentationData.map(e => <Cell key={e.name} fill={e.color} />)}</Pie><Legend iconSize={10} /></PieChart></ResponsiveContainer></CardContent></Card>
         </div>
 
         {/* SCE Components Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Award className="w-5 h-5" />
-                SCE Components
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  {searchedSCEComponents.length} records
-                </Badge>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="search"
-                    placeholder="Search students..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </CardTitle>
-            <CardDescription>
-              Student Continuous Evaluation components and scores
-            </CardDescription>
+            <CardTitle className="flex justify-between items-center"><span>SCE Records</span><div className="relative w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><Input placeholder="Search by name or roll no..." className="pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div></CardTitle>
+            <CardDescription>Student Continuous Evaluation components and their status.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Added a div with min-height to prevent layout shift */}
-            <div className="min-h-[200px]">
-              {searchedSCEComponents.length === 0 ? (
-                <div className="text-center py-12">
-                  <Award className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <h3 className="mb-2">No SCE records found</h3>
-                  <p className="text-gray-600">Try adjusting your filters or search query to see more records</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Student Details</TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Briefcase className="w-4 h-4" />
-                            PBL
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student Details</TableHead>
+                    <TableHead className="text-center">PBL</TableHead>
+                    <TableHead className="text-center">Presentation</TableHead>
+                    <TableHead className="text-center">Certification</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {searchedSCEComponents.length > 0 ? searchedSCEComponents.map((component) => (
+                    <TableRow key={component.id}>
+                      <TableCell>
+                        <div className="font-medium">{component.studentName}</div>
+                        <div className="text-sm text-gray-500">{component.studentRollNo}</div>
+                      </TableCell>
+                      {/* PBL Cell */}
+                      <TableCell className="text-center">
+                        {editingRowId === component.id ? (
+                          <Select value={editedStatuses.pbl_status} onValueChange={(value: SCEStatus) => handleStatusChange('pbl_status', value)}>
+                            <SelectTrigger className="w-32 mx-auto"><SelectValue /></SelectTrigger>
+                            <SelectContent>{statusTypes.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : getStatusBadge(component.pblStatus)}
+                      </TableCell>
+                      {/* Presentation Cell */}
+                      <TableCell className="text-center">
+                        {editingRowId === component.id ? (
+                          <Select value={editedStatuses.presentation_status} onValueChange={(value: SCEStatus) => handleStatusChange('presentation_status', value)}>
+                            <SelectTrigger className="w-32 mx-auto"><SelectValue /></SelectTrigger>
+                            <SelectContent>{statusTypes.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : getStatusBadge(component.presentationStatus)}
+                      </TableCell>
+                      {/* Certification Cell */}
+                      <TableCell className="text-center">
+                        {editingRowId === component.id ? (
+                          <Select value={editedStatuses.certification_status} onValueChange={(value: SCEStatus) => handleStatusChange('certification_status', value)}>
+                            <SelectTrigger className="w-32 mx-auto"><SelectValue /></SelectTrigger>
+                            <SelectContent>{statusTypes.map(s => <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>)}</SelectContent>
+                          </Select>
+                        ) : getStatusBadge(component.certificationStatus)}
+                      </TableCell>
+                      {/* Actions Cell */}
+                      <TableCell className="text-center">
+                        {editingRowId === component.id ? (
+                          <div className="flex gap-2 justify-center">
+                            <Button size="sm" variant="outline" onClick={() => handleConfirmUpdate(component)} disabled={isUpdating}>
+                              {isUpdating && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                              <Save className="w-4 h-4 mr-1" />
+                              Confirm
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={handleCancelEdit}><XCircle className="w-4 h-4 mr-1" />Cancel</Button>
                           </div>
-                        </TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Presentation className="w-4 h-4" />
-                            Presentation
-                          </div>
-                        </TableHead>
-                        <TableHead className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Award className="w-4 h-4" />
-                            Certification
-                          </div>
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {searchedSCEComponents.map((component) => {
-                        return (
-                          <TableRow key={component.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white font-medium">
-                                  {component.studentName.charAt(0)}
-                                </div>
-                                <div>
-                                  <div className="font-medium">{component.studentName}</div>
-                                  <div className="text-sm text-gray-500">{component.studentRollNo}</div>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="space-y-1">
-                                {getStatusBadge(component.pblStatus)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="space-y-1">
-                                {getStatusBadge(component.presentationStatus)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="space-y-1">
-                                {getStatusBadge(component.certificationStatus)}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => handleEditClick(component)}><Edit className="w-4 h-4 mr-1" />Edit</Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow><TableCell colSpan={5} className="text-center h-24">No records found for the selected filters.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
@@ -596,3 +356,4 @@ export function SCEManagement({ onBack }: SCEManagementProps) {
     </div>
   );
 }
+

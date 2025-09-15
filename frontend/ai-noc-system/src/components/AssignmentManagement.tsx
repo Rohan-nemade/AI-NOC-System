@@ -222,15 +222,56 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
     setNewAssignment(prev => ({ ...prev, [key]: file || undefined }));
   };
 
-  const handlePublishAssignment = (id: number) => {
-    // TODO: Implement API call to publish assignment
-    console.log("Publishing assignment:", id);
+  const handlePublishAssignment = async (id: number) => {
+    // Note: You might want to add a loading state here
+    try {
+      const response = await fetch(`/assignments/teacher/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ status: 'published' }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Failed to publish assignment.');
+      }
+
+      // Refresh the list to show the new status
+      await fetchAssignments();
+    } catch (err: any) {
+      alert(`Error publishing assignment: ${err.message}`);
+    }
   };
 
-  const handleDeleteAssignment = (id: number) => {
-    // TODO: Implement API call to delete assignment
-    if (confirm('Are you sure you want to delete this assignment?')) {
-      console.log("Deleting assignment:", id);
+  const handleDeleteAssignment = async (id: number) => {
+    // The native confirm dialog blocks the event loop. In a real app, a custom modal component is recommended.
+    if (confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) {
+      try {
+        const response = await fetch(`/assignments/teacher/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.detail || 'Failed to delete assignment.');
+        }
+
+        // If the detailed view was for the deleted assignment, close it
+        if (selectedAssignmentForDetail?.id === id) {
+          setSelectedAssignmentForDetail(null);
+        }
+
+        // Refresh the list to remove the deleted assignment
+        await fetchAssignments();
+      } catch (err: any) {
+        alert(`Error deleting assignment: ${err.message}`);
+      }
     }
   };
 
@@ -242,10 +283,37 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
     setSelectedAssignmentForDetail(null);
   };
 
-  const handleGradeSubmission = () => {
-    // TODO: Implement API call to grade the submission
-    console.log("Grading submission:", selectedSubmission?.id, { grade, feedback });
-    setShowGradeDialog(false);
+  const handleGradeSubmission = async () => {
+    if (!selectedSubmission) {
+      alert("No submission selected.");
+      return;
+    }
+    // Add a loading state for the grading dialog if desired
+    try {
+      const response = await fetch(`/assignments/teacher/submissions/${selectedSubmission.id}/grade`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          marks: grade, // Backend expects 'marks'
+          feedback: feedback,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to grade submission.");
+      }
+
+      setShowGradeDialog(false);
+      // Refresh all data to ensure the submission reflects the new grade
+      await fetchAssignments();
+
+    } catch (err: any) {
+      alert(`Error grading submission: ${err.message}`);
+    }
   };
 
   const openGradeDialog = (submission: Submission) => {
@@ -254,6 +322,7 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
     setFeedback(submission.feedback || '');
     setShowGradeDialog(true);
   };
+
 
   // --- UI Helper Functions ---
   const getStatusBadge = (status: string) => {

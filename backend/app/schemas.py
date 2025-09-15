@@ -51,7 +51,6 @@ class SubjectCreate(SubjectBase):
     has_pbl: bool = False
     has_sce_presentation: bool = False
     has_sce_certificate: bool = False
-    has_sce_pbl: bool = False
     attendance_threshold: int = Field(..., ge=0, le=100)
 
 class SubjectParamsUpdate(BaseModel):
@@ -61,7 +60,6 @@ class SubjectParamsUpdate(BaseModel):
     has_pbl: Optional[bool] = None
     has_sce_presentation: Optional[bool] = None
     has_sce_certificate: Optional[bool] = None
-    has_sce_pbl: Optional[bool] = None
     attendance_threshold: Optional[int] = Field(None, ge=0, le=100)
 
 class SubjectOut(SubjectBase):
@@ -72,7 +70,6 @@ class SubjectOut(SubjectBase):
     has_pbl: bool
     has_sce_presentation: bool
     has_sce_certificate: bool
-    has_sce_pbl: bool
     attendance_threshold: int
 
     class Config:
@@ -87,10 +84,7 @@ class AssignSubjectRequest(BaseModel):
 # 3. Assignment and Submission Schemas
 # ===================================================================
 
-# --- Schemas for Backend CRUD Operations ---
-
 class AssignmentCreate(BaseModel):
-    """Schema for creating an assignment in the database."""
     title: str
     subject_id: int
     teacher_id: int
@@ -105,10 +99,9 @@ class AssignmentCreate(BaseModel):
     batch: Optional[str] = None
     assignment_file_path: Optional[str] = None
     solution_file_path: Optional[str] = None
-
+    is_sample: bool = False
 
 class AssignmentOut(BaseModel):
-    """A comprehensive schema for representing an assignment from the DB."""
     id: int
     title: str
     subject_id: int
@@ -124,6 +117,7 @@ class AssignmentOut(BaseModel):
     instructions: Optional[str]
     assignment_file_path: Optional[str]
     solution_file_path: Optional[str]
+    is_sample: bool
     created_at: datetime
 
     class Config:
@@ -149,16 +143,12 @@ class AssignmentSubmissionOut(BaseModel):
     class Config:
         from_attributes = True
 
-
-# --- Schemas specifically structured for the Frontend UI ---
-
 class StudentSubmissionDetail(BaseModel):
-    """Represents a single student submission inside the teacher's assignment detail view."""
     id: int
     assignmentId: int = Field(..., alias="assignment_id")
     studentName: str
     studentRollNo: Optional[str]
-    submissionDate: datetime
+    submissionDate: datetime = Field(..., alias="submitted_at")
     status: str
     grade: Optional[float] = Field(None, alias="marks")
     feedback: Optional[str] = None
@@ -169,12 +159,11 @@ class StudentSubmissionDetail(BaseModel):
         populate_by_name = True
 
 class TeacherAssignmentDetail(BaseModel):
-    """Represents the entire data object for the teacher's assignment management page."""
     id: int
     title: str
     description: Optional[str]
     subject: str
-    class_name: str = Field(..., alias="class")
+    class_name: str
     division: str
     batch: Optional[str]
     dueDate: datetime = Field(..., alias="deadline")
@@ -250,8 +239,13 @@ class NotificationOut(BaseModel):
         from_attributes = True
 
 # ===================================================================
-# 7. NOC and Marks Schemas
+# 7. NOC, Marks, and SCE Schemas
 # ===================================================================
+
+class SCEStatus(str, Enum):
+    completed = "completed"
+    pending = "pending"
+    late = "late"
 
 class NocStatusResponse(BaseModel):
     student_id: int
@@ -262,18 +256,50 @@ class NocStatusResponse(BaseModel):
 class MarksUpdateRequest(BaseModel):
     student_id: int
     subject_id: int
-    cie_completed: Optional[bool] = None
-    ha_completed: Optional[bool] = None
-    tw_completed: Optional[bool] = None
-    pbl_completed: Optional[bool] = None
-    sce_presentation_completed: Optional[bool] = None
-    sce_certificate_completed: Optional[bool] = None
-    sce_pbl_completed: Optional[bool] = None
     marks_cie: Optional[int] = Field(None, ge=0, le=100)
     marks_ha: Optional[int] = Field(None, ge=0, le=100)
     marks_tw: Optional[int] = Field(None, ge=0, le=100)
-    marks_pbl: Optional[int] = Field(None, ge=0, le=100)
     attendance_percentage: Optional[float] = Field(None, ge=0, le=100)
-    is_noc_eligible: Optional[bool] = None
-    noc_ineligibility_reason: Optional[str] = None
+    pbl_status: Optional[SCEStatus] = None
+    presentation_status: Optional[SCEStatus] = None
+    certification_status: Optional[SCEStatus] = None
+    pbl_score: Optional[int] = Field(None, ge=0, le=100)
+    pbl_title: Optional[str] = None
+    presentation_score: Optional[int] = Field(None, ge=0, le=100)
+    presentation_topic: Optional[str] = None
+    certification_name: Optional[str] = None
+    certification_provider: Optional[str] = None
+
+class SCEStatusUpdateRequest(BaseModel):
+    """NEW: A specific schema for updating only the status of SCE components."""
+    student_id: int
+    subject_id: int
+    pbl_status: Optional[SCEStatus] = None
+    presentation_status: Optional[SCEStatus] = None
+    certification_status: Optional[SCEStatus] = None
+
+class SCEDetailOut(BaseModel):
+    id: int
+    studentName: str
+    studentRollNo: Optional[str]
+    class_name: str = Field(..., alias="class")
+    division: str
+    batch: Optional[str]
+    year: str
+    subject: str
+    pblStatus: SCEStatus
+    pblScore: Optional[int]
+    pblTitle: Optional[str]
+    presentationStatus: SCEStatus
+    presentationScore: Optional[int]
+    presentationTopic: Optional[str]
+    certificationStatus: SCEStatus
+    certificationName: Optional[str]
+    certificationProvider: Optional[str]
+    overallSCEScore: Optional[float]
+    lastUpdated: datetime
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
 
