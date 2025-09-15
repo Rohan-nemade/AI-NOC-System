@@ -5,11 +5,14 @@ import { LoginPage } from './components/LoginPage';
 import { MainDashboard } from './components/MainDashboard';
 import { AssignmentProvider } from './components/AssignmentContext';
 
+// Define the roles for type safety
+type UserRole = 'student' | 'admin' | 'teacher';
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<'student' | 'admin' | 'teacher'>('student');
+  const [userRole, setUserRole] = useState<UserRole>('student');
 
-  const handleLogin = (role: 'student' | 'teacher' | 'admin') => {
+  const handleLoginSuccess = (role: UserRole) => {
     setUserRole(role);
     setIsLoggedIn(true);
   };
@@ -17,6 +20,8 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUserRole('student');
+    // Clear the token from storage on logout
+    localStorage.removeItem('accessToken'); 
   };
 
   return (
@@ -24,7 +29,8 @@ export default function App() {
       {isLoggedIn ? (
         <MainDashboard userRole={userRole} onLogout={handleLogout} />
       ) : (
-        <LoginPage onLogin={handleLogin} />
+        // Pass the new login success handler to LoginPage
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
       )}
     </AssignmentProvider>
   );

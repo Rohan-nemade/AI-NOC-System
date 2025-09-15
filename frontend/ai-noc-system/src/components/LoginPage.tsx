@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { GraduationCap, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 // --- Self-Contained UI Components to resolve import errors ---
-// NOTE: These are basic implementations to make the component runnable.
-// They use the class names from your original code.
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -90,14 +88,14 @@ Label.displayName = "Label"
 type Role = 'student' | 'teacher' | 'admin';
 
 interface LoginPageProps {
-  onLogin: (role: Role) => void;
+  onLoginSuccess: (role: Role) => void;
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>('student');
+  const [role, setRole] = useState<Role>('student'); // State for selected role
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -112,14 +110,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     setIsLoading(true);
 
-    // FastAPI's OAuth2PasswordRequestForm expects form data, not JSON.
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
 
     try {
-      // Update the endpoint URL to your FastAPI /token endpoint
-      const response = await fetch('/signup', {
+      // 1. Send the login request to the /token endpoint
+      const tokenResponse = await fetch('http://127.0.0.1:8000/token', { // Use full URL in development
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -127,31 +124,59 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         body: formData.toString(),
       });
 
-      if (!response.ok) {
-        // The FastAPI backend returns a 401 for incorrect credentials
-        if (response.status === 401) {
-          const errorData = await response.json();
-          setError(errorData.detail || "Incorrect username or password.");
+      if (!tokenResponse.ok) {
+        if (tokenResponse.status === 401) {
+          setError("Incorrect email or password.");
         } else {
-          throw new Error(`Network response was not ok: ${response.statusText}`);
+          setError(`Login failed: ${tokenResponse.statusText}`);
         }
-        return; // Stop execution if login failed
+        setIsLoading(false);
+        return;
       }
 
-      const tokenData = await response.json();
-      console.log('Login Successful, token received:', tokenData.access_token);
+      const tokenData = await tokenResponse.json();
+      const accessToken = tokenData.access_token;
 
-      // Here you would typically save the access token (e.g., in context or state)
-      // For now, we'll just proceed with the existing onLogin logic
-      onLogin(role);
+      // 2. Save the token to local storage
+      localStorage.setItem('accessToken', accessToken);
+
+      // 3. Use the token to fetch the user's details and role from the /me endpoint
+      const userResponse = await fetch('http://127.0.0.1:8000/me', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!userResponse.ok) {
+        // This case indicates an issue after a successful token exchange, so we log out.
+        localStorage.removeItem('accessToken');
+        setError("Failed to fetch user data. Please try logging in again.");
+        setIsLoading(false);
+        return;
+      }
+      
+      const userData = await userResponse.json();
+      const userRole = userData.role as Role;
+
+      // 4. Check if the authenticated user's role matches the selected role
+      if (userRole !== role) {
+        localStorage.removeItem('accessToken');
+        setError(`This user is a '${userRole}', not a '${role}'. Please select the correct role.`);
+        setIsLoading(false);
+        return;
+      }
+
+      // 5. Call the parent handler with the correct role
+      onLoginSuccess(userRole);
 
     } catch (err) {
       console.error('There was a problem with the login request:', err);
-      setError('Failed to log in. Please check your connection and try again.');
+      setError('Failed to log in. Please check your network connection.');
     } finally {
       setIsLoading(false);
     }
   };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -309,4 +334,3 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     </div>
   );
 }
-
