@@ -119,7 +119,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       // Update the endpoint URL to your FastAPI /token endpoint
-      const response = await fetch('/signup', {
+      const response = await fetch('/token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
