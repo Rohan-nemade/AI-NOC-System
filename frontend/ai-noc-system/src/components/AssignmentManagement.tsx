@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -120,13 +120,34 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
   };
   const [newAssignment, setNewAssignment] = useState<NewAssignmentState>(initialNewAssignmentState);
 
-  // --- Data for Filters ---
-  const classes = ['BE IT', 'TE IT', 'SE IT', 'FE IT'];
-  const subjects = ['Data Structures', 'Computer Networks', 'Database Management', 'Software Engineering', 'Web Technologies', 'Machine Learning', 'Artificial Intelligence', 'Operating Systems'];
-  const divisions = ['A', 'B', 'C'];
-  const batches = ['Batch 1', 'Batch 2', 'Batch 3', 'Batch 4'];
-  const assignmentTypes = ['Theory Assignment', 'Home Assignment', 'Practical Assignment', 'Tutorial Assignment'];
-  const years = ['2025', '2024', '2023', '2022', '2021'];
+  // --- Dynamic Filter Data Extraction ---
+  const { years, subjects, divisions, batches, assignmentTypes, classes } = useMemo(() => {
+    const yearsSet = new Set<string>();
+    const subjectsSet = new Set<string>();
+    const divisionsSet = new Set<string>();
+    const batchesSet = new Set<string>();
+    const assignmentTypesSet = new Set<string>();
+    const classesSet = new Set<string>();
+
+    assignments.forEach(assignment => {
+      yearsSet.add(new Date(assignment.createdDate).getFullYear().toString());
+      subjectsSet.add(assignment.subject);
+      divisionsSet.add(assignment.division);
+      if (assignment.batch) batchesSet.add(assignment.batch);
+      assignmentTypesSet.add(assignment.assignmentType);
+      classesSet.add(assignment.class_name);
+    });
+
+    return {
+      years: Array.from(yearsSet).sort((a, b) => b.localeCompare(a)),
+      subjects: Array.from(subjectsSet).sort(),
+      divisions: Array.from(divisionsSet).sort(),
+      batches: Array.from(batchesSet).sort(),
+      assignmentTypes: Array.from(assignmentTypesSet).sort(),
+      classes: Array.from(classesSet).sort(),
+    };
+  }, [assignments]);
+
 
   // --- Data Fetching ---
   const fetchAssignments = async () => {
@@ -223,7 +244,6 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
   };
 
   const handlePublishAssignment = async (id: number) => {
-    // Note: You might want to add a loading state here
     try {
       const response = await fetch(`/assignments/teacher/${id}/status`, {
         method: 'PATCH',
@@ -238,8 +258,6 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
         const errData = await response.json();
         throw new Error(errData.detail || 'Failed to publish assignment.');
       }
-
-      // Refresh the list to show the new status
       await fetchAssignments();
     } catch (err: any) {
       alert(`Error publishing assignment: ${err.message}`);
@@ -247,7 +265,6 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
   };
 
   const handleDeleteAssignment = async (id: number) => {
-    // The native confirm dialog blocks the event loop. In a real app, a custom modal component is recommended.
     if (confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) {
       try {
         const response = await fetch(`/assignments/teacher/${id}`, {
@@ -262,12 +279,9 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
           throw new Error(errData.detail || 'Failed to delete assignment.');
         }
 
-        // If the detailed view was for the deleted assignment, close it
         if (selectedAssignmentForDetail?.id === id) {
           setSelectedAssignmentForDetail(null);
         }
-
-        // Refresh the list to remove the deleted assignment
         await fetchAssignments();
       } catch (err: any) {
         alert(`Error deleting assignment: ${err.message}`);
@@ -288,7 +302,6 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
       alert("No submission selected.");
       return;
     }
-    // Add a loading state for the grading dialog if desired
     try {
       const response = await fetch(`/assignments/teacher/submissions/${selectedSubmission.id}/grade`, {
         method: 'PATCH',
@@ -297,7 +310,7 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
           'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          marks: grade, // Backend expects 'marks'
+          marks: grade,
           feedback: feedback,
         }),
       });
@@ -306,11 +319,8 @@ export function AssignmentManagement({ onBack, authToken }: AssignmentManagement
         const errData = await response.json();
         throw new Error(errData.detail || "Failed to grade submission.");
       }
-
       setShowGradeDialog(false);
-      // Refresh all data to ensure the submission reflects the new grade
       await fetchAssignments();
-
     } catch (err: any) {
       alert(`Error grading submission: ${err.message}`);
     }

@@ -79,7 +79,7 @@ const Label = React.forwardRef<
   HTMLLabelElement,
   React.LabelHTMLAttributes<HTMLLabelElement>
 >(({ className, ...props }, ref) => (
-    <label ref={ref} className={`text-sm font-medium leading-none ${className}`} {...props} />
+  <label ref={ref} className={`text-sm font-medium leading-none ${className}`} {...props} />
 ));
 Label.displayName = "Label"
 
@@ -88,7 +88,8 @@ Label.displayName = "Label"
 type Role = 'student' | 'teacher' | 'admin';
 
 interface LoginPageProps {
-  onLoginSuccess: (role: Role) => void;
+  // CORRECTED: The component now expects onLoginSuccess to accept both a role and a token.
+  onLoginSuccess: (role: Role, token: string) => void;
 }
 
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
@@ -115,7 +116,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     formData.append('password', password);
 
     try {
-      // Update the endpoint URL to your FastAPI /token endpoint
+      // 1. Fetch the authentication token
       const tokenResponse = await fetch('/token', {
         method: 'POST',
         headers: {
@@ -137,37 +138,31 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       const tokenData = await tokenResponse.json();
       const accessToken = tokenData.access_token;
 
-      // 2. Save the token to local storage
-      localStorage.setItem('accessToken', accessToken);
-
-      // 3. Use the token to fetch the user's details and role from the /me endpoint
-      const userResponse = await fetch('http://127.0.0.1:8000/me', {
+      // 2. Use the token to fetch the user's details and role from the /me endpoint
+      const userResponse = await fetch('/me', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
 
       if (!userResponse.ok) {
-        // This case indicates an issue after a successful token exchange, so we log out.
-        localStorage.removeItem('accessToken');
         setError("Failed to fetch user data. Please try logging in again.");
         setIsLoading(false);
         return;
       }
-      
+
       const userData = await userResponse.json();
       const userRole = userData.role as Role;
 
-      // 4. Check if the authenticated user's role matches the selected role
+      // 3. Check if the authenticated user's role matches the selected role
       if (userRole !== role) {
-        localStorage.removeItem('accessToken');
         setError(`This user is a '${userRole}', not a '${role}'. Please select the correct role.`);
         setIsLoading(false);
         return;
       }
 
-      // 5. Call the parent handler with the correct role
-      onLoginSuccess(userRole);
+      // 4. CORRECTED: Call the parent handler with both the role and the token
+      onLoginSuccess(userRole, accessToken);
 
     } catch (err) {
       console.error('There was a problem with the login request:', err);
@@ -176,7 +171,6 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       setIsLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -290,14 +284,14 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
               </div>
 
               {/* Login Button */}
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isLoading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 disabled:bg-blue-400"
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
-              
+
               {error && <p className="text-sm text-red-500 text-center">{error}</p>}
             </form>
 
