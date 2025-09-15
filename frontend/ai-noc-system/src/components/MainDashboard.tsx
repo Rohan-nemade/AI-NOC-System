@@ -10,12 +10,12 @@ import { AttendanceDisplay } from './AttendanceDisplay';
 import { SCEManagement } from './SCEManagement';
 import { FeedbackSystem } from './FeedbackSystem';
 import { NotificationCenter } from './NotificationCenter';
-import { 
-  BookOpen, 
-  User, 
-  UserCheck, 
-  FileText, 
-  Award, 
+import {
+  BookOpen,
+  User,
+  UserCheck,
+  FileText,
+  Award,
   Calendar,
   ClipboardList,
   MessageSquare,
@@ -33,13 +33,14 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 
 interface MainDashboardProps {
-  userRole: 'student' | 'admin'| 'teacher';
+  userRole: 'student' | 'admin' | 'teacher';
   onLogout: () => void;
+  authToken: string; // authToken is now a required prop
 }
 
 type ModuleKey = 'overview' | 'attendance' | 'assignment' | 'noc' | 'students' | 'feedback' | 'timetable' | 'sce' | 'notifications';
 
-export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
+export function MainDashboard({ userRole, onLogout, authToken }: MainDashboardProps) {
   const [activeModule, setActiveModule] = useState<ModuleKey | null>(null);
 
   const studentModules = [
@@ -69,11 +70,14 @@ export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
   };
 
   if (activeModule) {
+    // Corrected: Pass authToken to all child components that need it
+    const moduleProps = { onBack: handleBackToDashboard, authToken: authToken, userRole: userRole };
+
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={handleBackToDashboard}
             className="mb-2"
           >
@@ -81,33 +85,23 @@ export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
             Back to Dashboard
           </Button>
         </div>
-        
+
         {userRole === 'student' ? (
-          activeModule === 'assignment' ? (
-            <StudentAssignmentView onBack={handleBackToDashboard} />
-          ) : activeModule === 'attendance' ? (
-            <AttendanceDisplay onBack={handleBackToDashboard} userRole={userRole} />
-          ) : activeModule === 'noc' ? (
-            <NOCManagement onBack={handleBackToDashboard} userRole={userRole} />
-          ) : activeModule === 'notifications' ? (
-            <NotificationCenter onBack={handleBackToDashboard} />
-          ) : (
-            <Dashboard onLogout={onLogout} />
-          )
-        ) : activeModule === 'overview' ? (
-          <StudentOverview onBack={handleBackToDashboard} />
-        ) : activeModule === 'attendance' ? (
-          <AttendanceDisplay onBack={handleBackToDashboard} userRole={userRole} />
-        ) : activeModule === 'noc' ? (
-          <NOCManagement onBack={handleBackToDashboard} userRole={userRole} />
-        ) : activeModule === 'assignment' ? (
-          <AssignmentManagement onBack={handleBackToDashboard} />
-        ) : activeModule === 'sce' ? (
-          <SCEManagement onBack={handleBackToDashboard} />
-        ) : activeModule === 'feedback' ? (
-          <FeedbackSystem onBack={handleBackToDashboard} />
+          <>
+            {activeModule === 'assignment' && <StudentAssignmentView {...moduleProps} />}
+            {activeModule === 'attendance' && <AttendanceDisplay {...moduleProps} />}
+            {activeModule === 'noc' && <NOCManagement {...moduleProps} />}
+            {activeModule === 'notifications' && <NotificationCenter {...moduleProps} />}
+          </>
         ) : (
-          <TeacherDashboard onLogout={onLogout} />
+          <>
+            {activeModule === 'overview' && <StudentOverview {...moduleProps} />}
+            {activeModule === 'attendance' && <AttendanceDisplay {...moduleProps} />}
+            {activeModule === 'noc' && <NOCManagement {...moduleProps} />}
+            {activeModule === 'assignment' && <AssignmentManagement {...moduleProps} />}
+            {activeModule === 'sce' && <SCEManagement {...moduleProps} />}
+            {activeModule === 'feedback' && <FeedbackSystem {...moduleProps} />}
+          </>
         )}
       </div>
     );
@@ -126,12 +120,8 @@ export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
               <h1 className="text-lg font-semibold text-gray-900">Vishwakarma Institute of Information Technology</h1>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-4">
-            <div className="text-green-500 flex items-center space-x-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm">4G | 10+ Mbps</span>
-            </div>
             <div className="relative">
               <Bell className="w-5 h-5 text-gray-500 hover:text-blue-600 cursor-pointer" />
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
@@ -166,7 +156,7 @@ export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-8">
             <div className="text-center">
               <span className="text-sm text-gray-500">Registration No.</span>
@@ -187,8 +177,8 @@ export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
       {/* Search Bar */}
       <div className="bg-white px-6 py-4 border-b border-gray-200">
         <div className="max-w-md mx-auto relative">
-          <Input 
-            placeholder="Search Module" 
+          <Input
+            placeholder="Search Module"
             className="pl-10 bg-gray-50 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
           />
           <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -199,36 +189,28 @@ export function MainDashboard({ userRole, onLogout }: MainDashboardProps) {
       <main className="p-6">
         <div className={`grid gap-6 max-w-7xl mx-auto ${userRole === 'student' ? 'grid-cols-4' : 'grid-cols-6'}`}>
           {modules.map((module) => (
-            <Card 
-              key={module.key} 
+            <Card
+              key={module.key}
               className="relative overflow-hidden cursor-pointer transform transition-all hover:scale-105 hover:shadow-lg border-0 group"
               onClick={() => handleModuleClick(module.key)}
             >
               <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 p-6 h-32 relative">
-                {/* Radial gradient overlay for center highlight */}
                 <div className="absolute inset-0 bg-gradient-radial from-white/10 via-transparent to-transparent opacity-50"></div>
-                
+
                 <div className="relative flex flex-col items-center justify-center h-full text-center z-10">
                   <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:bg-white/30 transition-colors backdrop-blur-sm">
                     <module.icon className="w-6 h-6 text-white" />
                   </div>
                   <span className="text-white font-medium text-sm leading-tight">{module.title}</span>
                 </div>
-                
-                {/* Corner highlight */}
+
                 <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-white/10 to-transparent rounded-bl-full"></div>
               </div>
             </Card>
           ))}
         </div>
       </main>
-
-      {/* Support Button */}
-      <div className="fixed bottom-4 left-4">
-        <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-full shadow-lg">
-          Support
-        </Button>
-      </div>
     </div>
   );
 }
+
