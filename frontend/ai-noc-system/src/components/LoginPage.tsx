@@ -115,8 +115,13 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
     formData.append('password', password);
 
     try {
+<<<<<<< HEAD
       // 1. Send the login request to the /token endpoint
       const tokenResponse = await fetch('http://127.0.0.1:8000/token', { // Use full URL in development
+=======
+      // Update the endpoint URL to your FastAPI /token endpoint
+      const response = await fetch('/token', {
+>>>>>>> 1e0f6ce4cc692d4d9646cd5fa6ae4a50fc604276
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

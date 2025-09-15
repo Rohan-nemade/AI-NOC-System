@@ -3,21 +3,23 @@ from enum import Enum
 from datetime import datetime
 from typing import Optional, List
 
-# User role enum
+# ===================================================================
+# 1. User and Authentication Schemas
+# ===================================================================
+
 class UserRole(str, Enum):
     student = "student"
     teacher = "teacher"
     admin = "admin"
 
-# User creation schema
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6)
     role: UserRole
-    roll_number: Optional[str] = None  # Only students
-    class_name: Optional[str] = None   # Only students
-    division: Optional[str] = None     # Only students
+    roll_number: Optional[str] = None
+    class_name: Optional[str] = None
+    division: Optional[str] = None
 
 class UserOut(BaseModel):
     id: int
@@ -35,7 +37,10 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-# Subject schemas -- now with booleans for dynamic params
+# ===================================================================
+# 2. Subject Schemas
+# ===================================================================
+
 class SubjectBase(BaseModel):
     name: str
 
@@ -78,23 +83,48 @@ class AssignSubjectRequest(BaseModel):
     subject_id: int
     role: UserRole
 
-# Assignment schemas
+# ===================================================================
+# 3. Assignment and Submission Schemas
+# ===================================================================
+
+# --- Schemas for Backend CRUD Operations ---
+
 class AssignmentCreate(BaseModel):
+    """Schema for creating an assignment in the database."""
     title: str
     subject_id: int
-    description: Optional[str] = None
-    teacher_id: Optional[int] = None
+    teacher_id: int
+    class_name: str
+    division: str
+    assignment_type: str
     deadline: datetime
-    is_sample: Optional[bool] = False
+    max_marks: int
+    status: str
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    batch: Optional[str] = None
+    assignment_file_path: Optional[str] = None
+    solution_file_path: Optional[str] = None
+
 
 class AssignmentOut(BaseModel):
+    """A comprehensive schema for representing an assignment from the DB."""
     id: int
     title: str
     subject_id: int
     teacher_id: int
     description: Optional[str]
     deadline: datetime
-    is_sample: bool
+    status: str
+    class_name: str
+    division: str
+    batch: Optional[str]
+    assignment_type: str
+    max_marks: int
+    instructions: Optional[str]
+    assignment_file_path: Optional[str]
+    solution_file_path: Optional[str]
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -111,15 +141,61 @@ class AssignmentSubmissionOut(BaseModel):
     student_id: int
     content: str
     file_path: Optional[str]
-    deadline_met: bool
     bert_score: Optional[float]
     marks: Optional[float]
     status: str
+    submitted_at: datetime
 
     class Config:
         from_attributes = True
 
-# Grievance schemas
+
+# --- Schemas specifically structured for the Frontend UI ---
+
+class StudentSubmissionDetail(BaseModel):
+    """Represents a single student submission inside the teacher's assignment detail view."""
+    id: int
+    assignmentId: int = Field(..., alias="assignment_id")
+    studentName: str
+    studentRollNo: Optional[str]
+    submissionDate: datetime
+    status: str
+    grade: Optional[float] = Field(None, alias="marks")
+    feedback: Optional[str] = None
+    filePath: Optional[str] = Field(None, alias="file_path")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+class TeacherAssignmentDetail(BaseModel):
+    """Represents the entire data object for the teacher's assignment management page."""
+    id: int
+    title: str
+    description: Optional[str]
+    subject: str
+    class_name: str = Field(..., alias="class")
+    division: str
+    batch: Optional[str]
+    dueDate: datetime = Field(..., alias="deadline")
+    createdDate: datetime = Field(..., alias="created_at")
+    maxMarks: int = Field(..., alias="max_marks")
+    instructions: Optional[str]
+    status: str
+    teacherName: str
+    assignmentType: str = Field(..., alias="assignment_type")
+    submissions: List[StudentSubmissionDetail] = []
+    assignmentFilePath: Optional[str] = Field(None, alias="assignment_file_path")
+    solutionFilePath: Optional[str] = Field(None, alias="solution_file_path")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+# ===================================================================
+# 4. Grievance Schemas
+# ===================================================================
+
 class GrievanceCreate(BaseModel):
     student_id: int
     subject_id: Optional[int] = None
@@ -134,11 +210,13 @@ class GrievanceOut(BaseModel):
     description: str
     status: str
     response: Optional[str] = None
-
     class Config:
         from_attributes = True
 
-# Messaging schemas
+# ===================================================================
+# 5. Messaging Schemas
+# ===================================================================
+
 class MessageCreate(BaseModel):
     sender_id: int
     receiver_id: int
@@ -150,11 +228,13 @@ class MessageOut(BaseModel):
     receiver_id: int
     content: str
     timestamp: datetime
-
     class Config:
         from_attributes = True
 
-# Notification schemas
+# ===================================================================
+# 6. Notification Schemas
+# ===================================================================
+
 class NotificationCreate(BaseModel):
     student_id: int
     subject_id: int
@@ -166,11 +246,13 @@ class NotificationOut(BaseModel):
     subject_id: int
     message: str
     created_at: datetime
-
     class Config:
         from_attributes = True
 
-# NOC/Marks/Status (per student x subject)
+# ===================================================================
+# 7. NOC and Marks Schemas
+# ===================================================================
+
 class NocStatusResponse(BaseModel):
     student_id: int
     subject_id: int
@@ -194,3 +276,4 @@ class MarksUpdateRequest(BaseModel):
     attendance_percentage: Optional[float] = Field(None, ge=0, le=100)
     is_noc_eligible: Optional[bool] = None
     noc_ineligibility_reason: Optional[str] = None
+
